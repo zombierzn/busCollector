@@ -1,0 +1,13 @@
+{
+  "mongo":{
+    "host":"some.host",
+    "port":27017,
+    "user":"",
+    "password":"",
+    "db":"someDB",
+    "opts":{
+      "auto_reconnect": true,
+      "poolSize": 40
+    }
+  }
+}
