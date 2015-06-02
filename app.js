@@ -13,6 +13,7 @@ var dbc = new mongo.Db(
 var db;
 stationObj = {};
 routesObj = {};
+lastPos = {};
 
 function getJsonData(url, cb){
     async.waterfall([
@@ -158,7 +159,7 @@ function updateRoutes(cb) {
                                         routesObj[route.id].toSt = stationObj[route.toSTid];
                                         delete routesObj[route.id].fromSTid;
                                         delete routesObj[route.id].toSTid;
-
+                                        routesObj[route.id]._id = fnd._id;
                                         cb();
                                     }));
                             } else {
@@ -168,6 +169,7 @@ function updateRoutes(cb) {
                                     routesObj[route.id].toSt = stationObj[route.toSTid];
                                     delete routesObj[route.id].fromSTid;
                                     delete routesObj[route.id].toSTid;
+                                    routesObj[route.id]._id = row._id;
                                     cb();
                                 }));
                             }
@@ -179,6 +181,54 @@ function updateRoutes(cb) {
     }));
 }
 
+function updateLocations(cb){
+    var toUpdate = [];
+    async.waterfall([
+        function(cb){
+            console.log('getting locations...');
+            getTransportLocation(_.toArray(routesObj), cb);
+        },
+        function(locArr, cb){
+            console.log('received '+locArr.length.toString()+' values');
+            _.forEach(locArr, function(el){
+                if (!lastPos[el.id] || lastPos[el.id].time.getTime() !== el.time.getTime()){
+                    el.route = routesObj[el.routeId];
+                    el.routeId = el.route._id;
+                    toUpdate.push(el);
+                    lastPos[el.id] = el;
+                }
+            });
+            if (!db)
+                return cb('db connection fails');
+            db.collection("locations", cb);
+        },
+        function(lcCol, cb){
+            if (toUpdate.length){
+                console.log('updating '+toUpdate.length.toString()+' values');
+                async.eachLimit(toUpdate, 20, function(loc, cb){
+                    var rt = loc.route;
+                    delete loc.route;
+                    lcCol.insert(loc, safe.sure(cb, function(){
+                        loc.route = rt;
+                        delete loc.routeId;
+                        cb();
+                    }));
+                }, cb);
+            }else{
+                console.log('nothing to update')
+                cb();
+            }
+        }
+    ], cb);
+}
+
+function updater(){
+    updateLocations(function(err){
+        if (err)
+            console.log(err);
+        setTimeout(updater, 5000);
+    });
+}
 
 async.waterfall([
     function dbConnect(cb){
@@ -195,15 +245,11 @@ async.waterfall([
     },
     function (cb){
         updateRoutes(cb);
-    },
-    function (cb){
-        getTransportLocation(_.filter(_.toArray(routesObj), function(el){return el.type=='A' && el.num==17}), cb);
-    },
-    function(buses, cb){
-
     }
 ], function(err){
-    console.log('');
+    if (err)
+        console.log(err);
+    updater();
 });
 
 
