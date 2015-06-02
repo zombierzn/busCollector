@@ -172,6 +172,7 @@ async.waterfall([
                 console.log('--- getting data for '+moment(el.date).format('YYYY-MM-DD')+' ---');
                 console.time('done');
                 var tt = [];
+                jar = request.jar();
                 async.waterfall([
                     function(cb){
                         console.log('getting direct');
